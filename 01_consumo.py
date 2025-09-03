@@ -65,7 +65,26 @@ def grafico1():
         title = 'Top 10 paises em consumo de alcool!'
     )
     return figuraGrafico1.to_html()
+@app.route(rotas[2])
+def grafico2():
+     with sqlite3.connect(f'{caminhoBanco}{nomeBanco}') as conn:
+        df = pd.read_sql_query(consultas.consulta02, conn)
+        #transforma as colunas cerveja destilados e vinhos e linhas criando no fim duas colunas, uma chamada 
+        #bebidas com os nomes originais das colunas e outra com a media de porções com seus valores correspondentes 
+        df_melted = df.melt(var_name= 'Bebidas', value_name = 'Média de Porçoes')
+        figuraGrafico2 = px.bar(
+        df_melted,
+        x = 'Bebidas',
+        y = 'Média de Porçoes',
+        title = 'Média de consumo global por tipo'     
+    )
+        return figuraGrafico2.to_html()
+@app.route()
 
 #inicia o servidor
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(
+        debug= config.FLASK_DEBUG,
+        host = config.Flask_HOST,
+        port= config.FLASK_PORT
+        )
