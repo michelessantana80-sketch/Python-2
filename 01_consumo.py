@@ -319,8 +319,7 @@ def apagarV2():
                 return true;
             }}
             else {{
-                document.getElementById
-                ('confirmacao').value = 'Não';
+                document.getElementById('confirmacao').value = 'Não';
                 return false;
             }}
         }}
@@ -328,6 +327,271 @@ def apagarV2():
         </body>
         </html>
     '''
+@app.route(rotas[9], methods=['GET','POST'])
+def vaa_mortes_consumo():
+    #cada dose  corresponde a 14g de  alcool puro
+    metricas_beb = {
+        "Total (L de alcool)":"total_litres_of_pure_alcohol",
+        "Cerveja (Doses)":"beer_servings",
+        "Destilados (Doses)":"spirit_servings",
+        "Vinho (Doses)":"wine_servings"
+    }
+
+    return render_template_string('''
+    <style>
+    /* Reset básico */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Fonte global e fundo */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fa;
+    color: #333;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    line-height: 1.6;
+}
+
+/* Título */
+h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 28px;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 10px;
+    text-align: center;
+}
+
+/* Formulário */
+form {
+    background-color: #ffffff;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    max-width: 500px;
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+/* Labels */
+form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+/* Inputs e Selects */
+form select,
+form input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: border 0.3s ease;
+}
+
+form select:focus,
+form input[type="number"]:focus {
+    border-color: #3498db;
+    outline: none;
+}
+
+/* Botão */
+form input[type="submit"] {
+    background-color: #3498db;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+form input[type="submit"]:hover {
+    background-color: #2980b9;
+}
+
+/* Parágrafo explicativo */
+p {
+    max-width: 700px;
+    background-color: #ecf0f1;
+    padding: 20px;
+    border-left: 4px solid #3498db;
+    border-radius: 6px;
+    font-size: 15px;
+    margin-bottom: 20px;
+}
+
+/* Link de voltar */
+a {
+    display: inline-block;
+    margin-top: 10px;
+    color: #3498db;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: #2c3e50;
+}
+
+/* Responsividade básica */
+@media (max-width: 600px) {
+    form {
+        padding: 20px;
+    }
+
+    h2 {
+        font-size: 24px;
+    }
+
+    form input[type="submit"] {
+        width: 100%;
+    }
+
+    p {
+        font-size: 14px;
+    }
+}
+
+    </style>
+    <h2> V.A.A - País X Consumo X Mortes</h2>
+        <form method="POST">
+            <label for="metrica_beb"> <b> Metrica de Consumo: </b> </label>
+            <select name="metrica_beb" id="metrica_beb">
+                {% for metrica in metricas_beb.keys() %}}
+                        <option value="{{metrica}}"> {{metrica}} </option>
+                {% endfor %}
+            </select>
+            <br><br>
+            <label for="semente"> <b>Semente:</b> (opcional, p/ reprodutividade</i>)</label>
+            <input type="number" name="semente" id="semente" value="42">
+
+            <br></br>
+            <input type="submit" value="--Gerar Graficos--">
+        </form>
+        <p>
+            Esta visão sortei um país para cada vingador, soma as mortes dos personagens e anexa o consumo
+            de alcool do país, ao fim plota um scatter 2d (Consumo X Mortes) e um grafico 3D (Pais x Mortes)
+        </p>
+        <br>
+        <a href={{rotas[0]}}>Voltar</a>
+    
+    ''',metricas_beb = metricas_beb, rotas=rotas)
+    if request.method == "POST":
+        met_beb_key = request.form.get("metrica_beb") or "Total (L de alcool)"
+        met_beb = metricas_beb.get(met_beb_key, "total_litres_of_pure_alcohol")
+
+        #semente opcional para reproduzir a mesma distribuição de paises nos vingadores
+        try:
+            semente = int(request.form.get("semente"))
+        except:
+            semente = 42
+        sementeAleatoria = random.Random(semente) #gera o valor aleatorio baseado na semente escolhida.
+
+        #lê os dados do SQL
+        with getDbConect() as conn:
+            dfA= pd.read_sql_query('SELECT * FROM vingadores', conn)
+            dfB= pd.read_sql_query('SELECT * FROM country, beer_servings,spirit_servings, wine_servings, total_litres_of_pure_alcohol FROM bebidas', conn)
+
+        #------ Mortes dos vingadores
+        #estrategia: somar colunas que contenham death como true (case-insensitive)
+        #contaremos não nulos como1, ou seja, death1 tem True? vale 1, não tem nada? Vale 0
+        death_cols = [c for c in dfA.columns if "death" in c.lower()]
+        if death_cols:
+            dfA["Mortes"] = dfA[death_cols].notna().astype(int).sum(axis=1)
+        elif "Deaths" in dfA.columns:
+            #fallback obvio
+            dfA["Mortes"] = pd.to_numeric(dfA["Deaths"], errors="coerce").fillna(0).astype(int)
+        else:
+            dfA["Mortes"] = 0
+
+        if "Name/Alias" in dfA.columns:
+            col_name = "Name/Alias"
+        elif "Name" in dfA.columns:
+            col_name= "Name"
+        elif "Alias" in dfA.columns:
+            col_name = "Alias"
+        else:
+            possivel_texto = [c for c in dfA.columns if dfA[c].dtype == "object"]
+            col_name = possivel_texto[0] if possivel_texto else dfA.colums[0]
+        dfA.rename(columns={col_name: "Personagem"}, inplace=True)
+
+        #------sortear um paus para cada vingador
+        paises = dfB["country"].dropna().astype(str).to_list()
+        if not paises:
+            return "<h3> Não há paises na tabela de bebidas </h3><a href={{rotas[9]}}>Voltar</a>"
+
+        dfA["Pais"] = [sementeAleatoria.choice(paises) for _ in range(len(dfA))]
+        dfB_cons = dfB[["country", met_beb]].rename(columns={
+            "country":"Pais",
+            met_beb : "Consumo"
+        })
+        base = dfA[["Personagem","Mortes","Pais"]].marge(dfB_cons, on="Pais",).merge(dfB_cons,on="Pais", how="left")
+
+        #filtra apenas linhas validas
+        base = base.dropna(subset=['Consumo'])
+        base["Mortes"] = pd.to_numeric(base["Mortes"], errors="coerce").fillna(0).astype(int)
+        base = base[base["Mortes"] >= 0]
+
+        #correlação (se possivel)
+        corr_txt = ""
+        if base["Consumo"].notna().sum >= 3 and base["Mortes"].notna().sum() >=3:
+            try:
+                corr = base["Consumo"].corr(base["Mortes"])
+                # <- faz alt+7 (7 do teclado numerico)
+                corr_txt = f" • r ={corr:.3f}"
+            except Exception:
+                pass 
+
+
+
+
+        #----------- GRAFICO SCATTER 2D: CONSUMO X MORTES (cor = pais) --------------
+        fig2d = px.scatter(
+            base,
+            x = "Consumo",
+            y = "Mortes",
+            color = "Pais",
+            hover_name = "Personagem",
+            hover_data = {
+                "Pais":True,
+                "Consumo":True,
+                "Mortes":True
+                },
+            title= f"Vingadores - Mortes VS consumo de Alcool do País({met_beb_key}){corr_txt}"
+        )
+        fig2d.update_layout(
+            xaxis_title = f"{met_beb_key}",
+            yaxis_title = "Mortes (contagem)",
+            margin = dict(l=40, r=20, t=70, b=40)
+        )
+        return (
+            "<h3>---Grafico 2D ---</h3>"
+            + fig2d.to_html(full_html=False)
+            + "<hr>"
+            + "<h3> --- Grafico 3D --- </h3>"
+            + "<p> Em Breve </p>"
+            + "<hr>"
+            + "<h3> --- Preview dos dados --- </h3>"
+            + "<p> Em Breve </p>"
+            + "<hr>"
+            + f"<a href={rotas[9]}>Voltar</a>"
+            + "<br>"
+            + f"<a href={rotas[0]}>Voltar</a>"
+        )
 
 
 #inicia o servidor
