@@ -40,8 +40,8 @@ for pagina in range(1, paginaLimite + 1):
         try:
             #captura o titulo do filme e hiperlik da pagina do filme
             titulo_tag = card.find("a", class_="meta-title-link")
-            titulo = title_tag.text.strip() if titulo_tag else "N/A"
-            link = "https://www.adorocinema.com/" + titulo_tag['href'] if titulo_tag else None
+            titulo = titulo_tag.text.strip() if titulo_tag else "N/A"
+            link = "https://www.adorocinema.com" + titulo_tag['href'] if titulo_tag else None
 
             #captura a note do filme
             nota_tag = card.find("span", class_="stareval-note")
@@ -52,7 +52,7 @@ for pagina in range(1, paginaLimite + 1):
 
             #caso exista um link, acessar a pag individual do filme e capturar os dados
             if link:
-                filme_resposta = request.get(link, headers=headers)
+                filme_resposta = requests.get(link, headers=headers)
                 if filme_resposta.status_code == 200:
                     filme_soup = BeautifulSoup(filme_resposta.text, "html.parser")
 
@@ -114,6 +114,41 @@ print(df.head())
 #vamos salvar os dados em um arquivo csv
 df.to_csv(saidaCSV, index=False, encoding='utf-8-sig', quotechar="'", quoting=1)
 
+#SQLite: criação e insert no banco
+
+with sqlite3.connect(bancoDados) as conn:
+    cursor = conn.cursor()
+
+    #tabela simples: link unico para evitar a repetição  ao roda de novo (idempotente)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS filmes(
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Titulo TEXT,
+                Direcao TEXT,
+                Nota REAL,
+                Link TEXT UNIQUE,
+                Ano TEXT,
+                Categoria TEXT
+        )
+    ''')
+    #inserir cada filme coletado
+    for filme in filmes:
+        try:
+            cursor.execute('''
+                INSERT OR IGNORE INTO filmes (Titulo, Direcao, Nota, Link, Ano, Categoria) VALUES (?, ?, ?, ?, ?, ?)
+            ''',(
+                filme['Titulo'],
+                filme['Direcao'],
+                float(filme['Nota']) if filme['Nota'] != 'N/A' else None,
+                filme['Link'],
+                filme['Ano']
+                filme['Categoria']
+            ))
+
+        except Exception as erro:
+            print(f'Erro ao inserir  filme{filme['Titulo']} no banco dados. \nDetalhes: {erro}')
+    conn.commit()
+
 termino = datetime.datetime.now()
 print("---------------------------------------------")
 print("Dados raspados e salvos com sucesso")
@@ -122,3 +157,4 @@ print("\nObrigada por usar o Sistema de Bot CineBot")
 print(f"\nIniciado em: {inicio.strftime('%H:%M:%S')} ")
 print(f"\nFinalizado em: {termino.strftime('%H:%M:%S')} ")
 print("----------------------------------------------")
+
