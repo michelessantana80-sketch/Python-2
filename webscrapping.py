@@ -141,18 +141,18 @@ with sqlite3.connect(bancoDados) as conn:
                 filme['Direcao'],
                 float(filme['Nota']) if filme['Nota'] != 'N/A' else None,
                 filme['Link'],
-                filme['Ano']
+                filme['Ano'],
                 filme['Categoria']
             ))
 
         except Exception as erro:
-            print(f'Erro ao inserir  filme{filme['Titulo']} no banco dados. \nDetalhes: {erro}')
+            print(f"Erro ao inserir  filme{filme['Titulo']} no banco dados. \nDetalhes: {erro}")
     conn.commit()
-
 termino = datetime.datetime.now()
 print("---------------------------------------------")
 print("Dados raspados e salvos com sucesso")
 print(f"\nArquivo CSV salvo em: {saidaCSV}")
+print(f"\nDados armazenados no banco de dados {bancoDados}")
 print("\nObrigada por usar o Sistema de Bot CineBot")
 print(f"\nIniciado em: {inicio.strftime('%H:%M:%S')} ")
 print(f"\nFinalizado em: {termino.strftime('%H:%M:%S')} ")
